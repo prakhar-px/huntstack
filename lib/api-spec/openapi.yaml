@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: linkedin
+    description: Public LinkedIn guest job-search operations
 paths:
   /healthz:
     get:
@@ -24,6 +26,74 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /linkedin/jobs:
+    get:
+      operationId: searchLinkedInGuestJobs
+      tags: [linkedin]
+      summary: Search recent LinkedIn guest job postings
+      description: |
+        Fetches one page from LinkedIn's public guest job-search endpoint,
+        extracts relative posting labels, estimates UTC posting timestamps from
+        the scrape time, and sorts results newest first. The date-only datetime
+        attribute is returned for reference but is never used to calculate time.
+      parameters:
+        - name: keywords
+          in: query
+          required: true
+          description: Job title, skill, or search phrase.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 150
+        - name: location
+          in: query
+          required: false
+          description: Optional location filter.
+          schema:
+            type: string
+            maxLength: 120
+        - name: start
+          in: query
+          required: false
+          description: LinkedIn page offset. Each page is limited by LinkedIn.
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 1000
+            default: 0
+      responses:
+        "200":
+          description: Jobs with parseable relative posting times, newest first.
+          headers:
+            X-LinkedIn-Scraped-At:
+              description: UTC timestamp used as the anchor for estimated posting times.
+              schema:
+                type: string
+                format: date-time
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LinkedInGuestJob"
+        "400":
+          description: Invalid search parameters.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: LinkedIn returned an error or an unexpected response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "504":
+          description: LinkedIn did not respond before the request timed out.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +103,51 @@ components:
           type: string
       required:
         - status
+    LinkedInGuestJob:
+      type: object
+      properties:
+        id:
+          type: string
+          pattern: "^[0-9]+$"
+        title:
+          type: string
+        company:
+          type: ["string", "null"]
+        location:
+          type: ["string", "null"]
+        rawRelative:
+          type: string
+        rawDateOnly:
+          type: ["string", "null"]
+        computedPostTime:
+          type: string
+          format: date-time
+          description: Estimated UTC time derived from the displayed relative label and scrape time.
+        timestampIsEstimate:
+          type: boolean
+          const: true
+        timePrecision:
+          type: string
+          enum: [second, minute, hour, day]
+        verifiedUrl:
+          type: string
+          format: uri
+      required:
+        - id
+        - title
+        - company
+        - location
+        - rawRelative
+        - rawDateOnly
+        - computedPostTime
+        - timestampIsEstimate
+        - timePrecision
+        - verifiedUrl
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
 
