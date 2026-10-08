@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "LinkedIn Fresh Jobs"
+description = "A lightweight mobile-friendly search interface for recent LinkedIn guest job postings, showing relative-time-based UTC estimates and direct job links."
+version = "1.0.0"
+id = "artifacts/linkedin-jobs-search"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 22735
+
+[services.development]
+run = "pnpm --filter @workspace/linkedin-jobs-search run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/linkedin-jobs-search", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/linkedin-jobs-search/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22735"
+BASE_PATH = "/"

@@ -1,0 +1,269 @@
+import { useState, type FormEvent, type ReactNode } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ErrorBoundary } from '@/components/error-boundary';
+import { Toaster } from '@/components/ui/toaster';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import NotFound from '@/pages/not-found';
+import {
+  getSearchLinkedInGuestJobsQueryKey,
+  useSearchLinkedInGuestJobs,
+  type LinkedInGuestJob,
+  type SearchLinkedInGuestJobsParams,
+} from '@workspace/api-client-react';
+import { ArrowUpRight, BriefcaseBusiness, Clock3, MapPin, Search, TriangleAlert } from 'lucide-react';
+import {
+  Route,
+  Switch,
+  useLocation,
+  Router as WouterRouter,
+} from 'wouter';
+
+const queryClient = new QueryClient();
+
+function Home() {
+  const [keywords, setKeywords] = useState('');
+  const [location, setLocation] = useState('');
+  const [searchParams, setSearchParams] = useState<SearchLinkedInGuestJobsParams | null>(null);
+  const params = searchParams ?? { keywords: '' };
+  const search = useSearchLinkedInGuestJobs(params, {
+    query: {
+      enabled: Boolean(searchParams),
+      queryKey: getSearchLinkedInGuestJobsQueryKey(params),
+    },
+  });
+
+  function submitSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const trimmedKeywords = keywords.trim();
+    if (!trimmedKeywords) return;
+    const trimmedLocation = location.trim();
+    setSearchParams({
+      keywords: trimmedKeywords,
+      ...(trimmedLocation ? { location: trimmedLocation } : {}),
+    });
+  }
+
+  const jobs = search.data;
+
+  return (
+    <div className="page-shell">
+      <header className="masthead">
+        <div className="mx-auto flex h-[68px] max-w-5xl items-center justify-between px-5 sm:px-8">
+          <div className="flex items-center gap-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[hsl(var(--primary))] text-[15px] font-bold text-[hsl(var(--primary-foreground))]" aria-hidden="true">in</div>
+            <span className="brand-mark text-[18px] font-extrabold tracking-tight">Fresh Jobs</span>
+          </div>
+          <span className="text-xs font-semibold uppercase tracking-[.12em] text-[hsl(var(--muted-foreground))]">LinkedIn guest search</span>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-5xl px-5 pb-16 pt-9 sm:px-8 sm:pt-14">
+        <section className="mb-8 max-w-2xl sm:mb-10">
+          <p className="mb-3 text-xs font-bold uppercase tracking-[.16em] text-[hsl(var(--primary))]">A fresher look at the feed</p>
+          <h1 className="font-serif text-[clamp(2.35rem,7vw,4rem)] font-extrabold leading-[1.03] tracking-[-.055em] text-[hsl(var(--foreground))]">
+            Find your next <span className="text-[hsl(var(--primary))]">good fit.</span>
+          </h1>
+          <p className="mt-4 max-w-xl text-base leading-7 text-[hsl(var(--muted-foreground))]">
+            Search recent LinkedIn listings by role, skill, or phrase. No account needed to get started.
+          </p>
+        </section>
+
+        <form onSubmit={submitSearch} className="search-panel grid gap-3 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 sm:grid-cols-[1.25fr_1fr_auto] sm:items-end sm:gap-3 sm:p-5" data-testid="form-job-search">
+          <label className="block">
+            <span className="mb-2 block text-xs font-bold tracking-wide text-[hsl(var(--foreground))]">Keywords <span className="text-[hsl(var(--primary))]">*</span></span>
+            <span className="relative block">
+              <Search size={17} strokeWidth={1.8} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" aria-hidden="true" />
+              <input
+                value={keywords}
+                onChange={(event) => setKeywords(event.target.value)}
+                required
+                maxLength={150}
+                placeholder="e.g. product designer"
+                aria-label="Job keywords"
+                className="h-12 w-full rounded-xl border border-[hsl(var(--input))] bg-[hsl(var(--background))] pl-10 pr-3 text-sm outline-none transition focus:border-[hsl(var(--primary))] focus:ring-2 focus:ring-[hsl(var(--primary))]/15"
+                data-testid="input-job-keywords"
+              />
+            </span>
+          </label>
+          <label className="block">
+            <span className="mb-2 block text-xs font-bold tracking-wide text-[hsl(var(--foreground))]">Location <span className="font-normal text-[hsl(var(--muted-foreground))]">optional</span></span>
+            <span className="relative block">
+              <MapPin size={17} strokeWidth={1.8} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" aria-hidden="true" />
+              <input
+                value={location}
+                onChange={(event) => setLocation(event.target.value)}
+                maxLength={120}
+                placeholder="City, region, or remote"
+                aria-label="Job location"
+                className="h-12 w-full rounded-xl border border-[hsl(var(--input))] bg-[hsl(var(--background))] pl-10 pr-3 text-sm outline-none transition focus:border-[hsl(var(--primary))] focus:ring-2 focus:ring-[hsl(var(--primary))]/15"
+                data-testid="input-job-location"
+              />
+            </span>
+          </label>
+          <button
+            type="submit"
+            disabled={search.isFetching}
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-6 text-sm font-bold text-[hsl(var(--primary-foreground))] transition hover:brightness-95 disabled:cursor-wait disabled:opacity-70 sm:w-auto"
+            data-testid="button-search-jobs"
+          >
+            <Search size={16} aria-hidden="true" />
+            Search jobs
+          </button>
+        </form>
+
+        <div className="mt-7 flex items-start gap-3 rounded-xl border border-[hsl(39_60%_76%)] bg-[hsl(42_78%_91%)] px-4 py-3.5 text-[hsl(30_42%_30%)]" role="note" data-testid="notice-estimated-time">
+          <Clock3 size={17} className="mt-0.5 shrink-0" aria-hidden="true" />
+          <p className="text-xs leading-5 sm:text-[13px]">
+            <strong className="font-bold">Posting times are estimates.</strong> LinkedIn shows relative labels such as “2 hours ago”; the UTC time here is calculated from that label and the search time, not an exact timestamp.
+          </p>
+        </div>
+
+        <section className="mt-10" aria-live="polite">
+          {!searchParams && (
+            <div className="rounded-2xl border border-dashed border-[hsl(var(--border))] bg-[hsl(var(--card))]/60 px-6 py-12 text-center sm:py-16" data-testid="empty-search-prompt">
+              <div className="mx-auto mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]">
+                <BriefcaseBusiness size={20} strokeWidth={1.8} aria-hidden="true" />
+              </div>
+              <h2 className="font-serif text-xl font-bold tracking-tight">Start with a role or a skill</h2>
+              <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-[hsl(var(--muted-foreground))]">Add a keyword above to see recent guest job listings and their relative posting times.</p>
+            </div>
+          )}
+
+          {searchParams && search.isFetching && (
+            <div data-testid="loading-jobs" aria-label="Loading job listings">
+              <div className="mb-4 flex items-center justify-between">
+                <div className="skeleton h-5 w-40 rounded-md" />
+                <div className="skeleton h-4 w-20 rounded-md" />
+              </div>
+              <div className="space-y-3">
+                {[0, 1, 2].map((item) => (
+                  <div key={item} className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5">
+                    <div className="skeleton h-5 w-2/3 rounded-md" />
+                    <div className="skeleton mt-3 h-4 w-1/3 rounded-md" />
+                    <div className="skeleton mt-6 h-4 w-1/2 rounded-md" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {searchParams && search.isError && !search.isFetching && (
+            <div className="rounded-2xl border border-[hsl(2_50%_82%)] bg-[hsl(2_70%_97%)] p-6 sm:p-8" role="alert" data-testid="error-job-search">
+              <div className="flex items-start gap-3">
+                <TriangleAlert size={20} className="mt-0.5 shrink-0 text-[hsl(var(--destructive))]" aria-hidden="true" />
+                <div>
+                  <h2 className="font-serif text-lg font-bold">We couldn’t reach the listings</h2>
+                  <p className="mt-1 text-sm leading-6 text-[hsl(var(--muted-foreground))]">LinkedIn’s guest search may be temporarily unavailable. Give it another try in a moment.</p>
+                  <button type="button" onClick={() => search.refetch()} className="mt-4 rounded-lg border border-[hsl(2_40%_78%)] bg-[hsl(var(--card))] px-4 py-2 text-sm font-bold text-[hsl(var(--foreground))] transition hover:bg-[hsl(var(--muted))]" data-testid="button-retry-search">Try again</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {searchParams && !search.isFetching && !search.isError && jobs && (
+            jobs.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-[hsl(var(--border))] bg-[hsl(var(--card))]/60 px-6 py-12 text-center sm:py-16" data-testid="empty-job-results">
+                <div className="mx-auto mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]">
+                  <Search size={19} aria-hidden="true" />
+                </div>
+                <h2 className="font-serif text-xl font-bold tracking-tight">No recent matches this time</h2>
+                <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-[hsl(var(--muted-foreground))]">Try a broader keyword or leave location blank to widen your search.</p>
+              </div>
+            ) : (
+              <>
+                <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+                  <h2 className="font-serif text-xl font-bold tracking-tight" data-testid="text-results-heading">Recent listings</h2>
+                  <span className="text-xs font-medium text-[hsl(var(--muted-foreground))]" data-testid="text-results-count">{jobs.length} {jobs.length === 1 ? 'result' : 'results'}</span>
+                </div>
+                <div className="space-y-3" data-testid="list-job-results">
+                  {jobs.map((job) => <JobCard key={job.id} job={job} />)}
+                </div>
+              </>
+            )
+          )}
+        </section>
+        <footer className="mt-12 border-t border-[hsl(var(--border))] pt-5 text-center text-xs leading-5 text-[hsl(var(--muted-foreground))]">
+          Listings link directly to LinkedIn. Times are indicative, not guarantees of when a role was posted.
+        </footer>
+      </main>
+    </div>
+  );
+}
+
+function JobCard({ job }: { job: LinkedInGuestJob }) {
+  const estimate = new Date(job.computedPostTime);
+  const timeOptions: Intl.DateTimeFormatOptions = job.timePrecision === 'day'
+    ? {}
+    : {
+        hour: 'numeric',
+        ...(job.timePrecision !== 'hour' ? { minute: '2-digit' } : {}),
+        ...(job.timePrecision === 'second' ? { second: '2-digit' } : {}),
+        timeZone: 'UTC',
+        timeZoneName: 'short',
+      };
+  const formattedEstimate = Number.isNaN(estimate.getTime())
+    ? job.computedPostTime
+    : new Intl.DateTimeFormat('en', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        timeZone: 'UTC',
+        ...timeOptions,
+      }).format(estimate);
+
+  return (
+    <article className="job-card rounded-2xl border border-[hsl(var(--card-border))] bg-[hsl(var(--card))] p-5 sm:px-6 sm:py-5" data-testid={`card-job-${job.id}`}>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h3 className="font-serif text-lg font-bold leading-snug tracking-[-.02em] text-[hsl(var(--foreground))]" data-testid={`text-job-title-${job.id}`}>{job.title}</h3>
+          <p className="mt-1 text-sm font-semibold text-[hsl(var(--foreground))]" data-testid={`text-job-company-${job.id}`}>{job.company || 'Company not listed'}</p>
+          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-[hsl(var(--muted-foreground))]">
+            {job.location && <span className="inline-flex items-center gap-1.5" data-testid={`text-job-location-${job.id}`}><MapPin size={13} aria-hidden="true" />{job.location}</span>}
+            <span className="inline-flex items-center gap-1.5" data-testid={`text-job-relative-${job.id}`}><Clock3 size={13} aria-hidden="true" />{job.rawRelative}</span>
+          </div>
+        </div>
+        <a href={job.verifiedUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 self-start rounded-lg border border-[hsl(var(--border))] px-3.5 text-xs font-bold text-[hsl(var(--foreground))] transition hover:border-[hsl(var(--primary))] hover:text-[hsl(var(--primary))] focus-visible:outline-2 focus-visible:outline-[hsl(var(--ring))]" data-testid={`link-job-${job.id}`}>
+          View on LinkedIn <ArrowUpRight size={14} aria-hidden="true" />
+        </a>
+      </div>
+      <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-[hsl(var(--border))] pt-3 text-xs">
+        <span className="font-semibold text-[hsl(var(--foreground))]" data-testid={`text-job-estimate-${job.id}`}>Estimated {formattedEstimate}</span>
+        <span className="text-[hsl(var(--muted-foreground))]">UTC · approximate from “{job.rawRelative}”</span>
+        {job.rawDateOnly && <span className="text-[hsl(var(--muted-foreground))]">· LinkedIn date label: {job.rawDateOnly}</span>}
+      </div>
+    </article>
+  );
+}
+
+function Router() {
+  return (
+    // Keep a shared shell (sidebar, navbar) outside the boundary so it
+    // survives a page crash.
+    <RoutedErrorBoundary>
+      <Switch>
+        <Route path="/" component={Home} />
+        <Route component={NotFound} />
+      </Switch>
+    </RoutedErrorBoundary>
+  );
+}
+
+function RoutedErrorBoundary({ children }: { children: ReactNode }) {
+  const [location] = useLocation();
+  return <ErrorBoundary resetKey={location}>{children}</ErrorBoundary>;
+}
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
+          <Router />
+        </WouterRouter>
+        <Toaster />
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+}
+
+export default App;
