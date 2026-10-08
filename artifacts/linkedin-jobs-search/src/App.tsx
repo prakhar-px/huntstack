@@ -1,12 +1,11 @@
-import { useState, type FormEvent, type ReactNode } from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { QueryClient, QueryClientProvider, useInfiniteQuery } from '@tanstack/react-query';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
 import {
-  getSearchLinkedInGuestJobsQueryKey,
-  useSearchLinkedInGuestJobs,
+  searchLinkedInGuestJobs,
   type LinkedInGuestJob,
   type SearchLinkedInGuestJobsParams,
 } from '@workspace/api-client-react';
@@ -19,19 +18,53 @@ import {
 } from 'wouter';
 
 const queryClient = new QueryClient();
+const LINKEDIN_PAGE_SIZE = 10;
+const MAX_LINKEDIN_START = 1000;
+const INITIAL_GUEST_PAGES = 5;
 
 function Home() {
   const [keywords, setKeywords] = useState('');
   const [location, setLocation] = useState('');
   const [searchParams, setSearchParams] = useState<SearchLinkedInGuestJobsParams | null>(null);
   const [freshnessHours, setFreshnessHours] = useState(24);
-  const params = searchParams ?? { keywords: '' };
-  const search = useSearchLinkedInGuestJobs(params, {
-    query: {
-      enabled: Boolean(searchParams),
-      queryKey: getSearchLinkedInGuestJobsQueryKey(params),
+  const search = useInfiniteQuery({
+    queryKey: ['linkedin-guest-jobs', searchParams],
+    enabled: Boolean(searchParams),
+    initialPageParam: 0,
+    queryFn: ({ pageParam, signal }) => {
+      if (!searchParams) throw new Error('Search terms are required.');
+      return searchLinkedInGuestJobs(
+        { ...searchParams, start: pageParam },
+        { signal },
+      );
     },
+    getNextPageParam: (lastPage, _allPages, lastPageStart) =>
+      lastPage.length > 0 && lastPageStart < MAX_LINKEDIN_START
+        ? lastPageStart + LINKEDIN_PAGE_SIZE
+        : undefined,
   });
+  const loadedPageCount = search.data?.pages.length ?? 0;
+
+  useEffect(() => {
+    if (
+      !searchParams ||
+      loadedPageCount === 0 ||
+      loadedPageCount >= INITIAL_GUEST_PAGES ||
+      !search.hasNextPage ||
+      search.isFetching ||
+      search.isFetchNextPageError
+    ) {
+      return;
+    }
+    void search.fetchNextPage();
+  }, [
+    loadedPageCount,
+    search.fetchNextPage,
+    search.hasNextPage,
+    search.isFetchNextPageError,
+    search.isFetching,
+    searchParams,
+  ]);
 
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -44,8 +77,9 @@ function Home() {
     });
   }
 
-  const jobs = search.data;
-  const freshestFirst = jobs
+  const jobs = search.data?.pages.flatMap((page) => page) ?? [];
+  const uniqueJobs = [...new Map(jobs.map((job) => [job.id, job])).values()];
+  const freshestFirst = uniqueJobs
     ? [...jobs].sort(
         (first, second) =>
           new Date(second.computedPostTime).getTime() -
@@ -75,7 +109,7 @@ function Home() {
             Find your next <span className="text-[hsl(var(--primary))]">good fit.</span>
           </h1>
           <p className="mt-4 max-w-xl text-base leading-7 text-[hsl(var(--muted-foreground))]">
-            Search recent LinkedIn listings by role, skill, or phrase. No account needed to get started.
+            Search public LinkedIn guest listings by role, skill, or phrase. Results can differ from LinkedIn’s signed-in feed.
           </p>
         </section>
 
@@ -140,7 +174,7 @@ function Home() {
             </div>
           )}
 
-          {searchParams && search.isFetching && (
+          {searchParams && !search.data && search.isFetching && (
             <div data-testid="loading-jobs" aria-label="Loading job listings">
               <div className="mb-4 flex items-center justify-between">
                 <div className="skeleton h-5 w-40 rounded-md" />
@@ -158,7 +192,7 @@ function Home() {
             </div>
           )}
 
-          {searchParams && search.isError && !search.isFetching && (
+          {searchParams && search.isError && !search.data && !search.isFetching && (
             <div className="rounded-2xl border border-[hsl(2_50%_82%)] bg-[hsl(2_70%_97%)] p-6 sm:p-8" role="alert" data-testid="error-job-search">
               <div className="flex items-start gap-3">
                 <TriangleAlert size={20} className="mt-0.5 shrink-0 text-[hsl(var(--destructive))]" aria-hidden="true" />
@@ -171,8 +205,8 @@ function Home() {
             </div>
           )}
 
-          {searchParams && !search.isFetching && !search.isError && jobs && (
-            jobs.length === 0 ? (
+          {searchParams && search.data && (
+            uniqueJobs.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-[hsl(var(--border))] bg-[hsl(var(--card))]/60 px-6 py-12 text-center sm:py-16" data-testid="empty-job-results">
                 <div className="mx-auto mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]">
                   <Search size={19} aria-hidden="true" />
@@ -213,7 +247,7 @@ function Home() {
                     </div>
                   </div>
                   <p className="mt-3 text-xs leading-5 text-[hsl(var(--muted-foreground))] sm:mt-0 sm:max-w-52 sm:text-right" data-testid="text-freshness-count">
-                    {visibleJobs.length} of {jobs.length} jobs within the last {freshnessHours} {freshnessHours === 1 ? 'hour' : 'hours'}
+                    {visibleJobs.length} of {uniqueJobs.length} loaded jobs within the last {freshnessHours} {freshnessHours === 1 ? 'hour' : 'hours'}
                   </p>
                 </div>
                 {visibleJobs.length === 0 ? (
@@ -224,6 +258,31 @@ function Home() {
                 ) : (
                   <div className="space-y-3" data-testid="list-job-results">
                     {visibleJobs.map((job) => <JobCard key={job.id} job={job} />)}
+                  </div>
+                )}
+                {search.isFetchNextPageError && (
+                  <p className="mt-4 text-center text-sm text-[hsl(var(--destructive))]" role="alert">
+                    Couldn’t load the next batch. The jobs already fetched are still available.
+                  </p>
+                )}
+                {search.hasNextPage && (
+                  <div className="mt-5 flex flex-col items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void search.fetchNextPage()}
+                      disabled={search.isFetchingNextPage}
+                      className="min-h-11 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-5 text-sm font-bold text-[hsl(var(--foreground))] transition hover:border-[hsl(var(--primary))] disabled:cursor-wait disabled:opacity-70"
+                      data-testid="button-load-more-jobs"
+                    >
+                      {search.isFetchingNextPage
+                        ? 'Loading more jobs…'
+                        : search.isFetchNextPageError
+                          ? 'Retry loading more'
+                          : 'Load 10 more jobs'}
+                    </button>
+                    <p className="text-center text-xs leading-5 text-[hsl(var(--muted-foreground))]">
+                      {uniqueJobs.length} public guest listings loaded. LinkedIn may have more pages, and its signed-in feed can differ.
+                    </p>
                   </div>
                 )}
               </>

@@ -1,0 +1,1 @@
+- [LinkedIn job app scope](linkedin-job-app-scope.md) — Keep the product lightweight; defer a full-fledged app until the user asks.
