@@ -119,6 +119,10 @@ components:
           type: string
         rawDateOnly:
           type: ["string", "null"]
+        relativeAgeMs:
+          type: integer
+          minimum: 0
+          description: Age duration parsed from LinkedIn's relative label at scrape time; suitable for freshness-window filtering.
         computedPostTime:
           type: string
           format: date-time
@@ -139,6 +143,7 @@ components:
         - location
         - rawRelative
         - rawDateOnly
+        - relativeAgeMs
         - computedPostTime
         - timestampIsEstimate
         - timePrecision

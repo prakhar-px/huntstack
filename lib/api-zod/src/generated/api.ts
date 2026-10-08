@@ -41,6 +41,8 @@ export const SearchLinkedInGuestJobsQueryParams = zod.object({
 })
 
 export const searchLinkedInGuestJobsResponseIdRegExp = new RegExp('^[0-9]+$');
+export const searchLinkedInGuestJobsResponseRelativeAgeMsMin = 0;
+
 
 
 export const SearchLinkedInGuestJobsResponseItem = zod.object({
@@ -50,6 +52,7 @@ export const SearchLinkedInGuestJobsResponseItem = zod.object({
   "location": zod.string().nullable(),
   "rawRelative": zod.string(),
   "rawDateOnly": zod.string().nullable(),
+  "relativeAgeMs": zod.number().int().min(searchLinkedInGuestJobsResponseRelativeAgeMsMin).describe('Age duration parsed from LinkedIn\'s relative label at scrape time; suitable for freshness-window filtering.'),
   "computedPostTime": zod.coerce.date().describe('Estimated UTC time derived from the displayed relative label and scrape time.'),
   "timestampIsEstimate": zod.literal(true),
   "timePrecision": zod.enum(['second', 'minute', 'hour', 'day']),

@@ -18,6 +18,11 @@ export interface LinkedInGuestJob {
   rawRelative: string;
   /** @nullable */
   rawDateOnly: string | null;
+  /**
+     * Age duration parsed from LinkedIn's relative label at scrape time; suitable for freshness-window filtering.
+     * @minimum 0
+     */
+  relativeAgeMs: number;
   /** Estimated UTC time derived from the displayed relative label and scrape time. */
   computedPostTime: Date;
   timestampIsEstimate: true;

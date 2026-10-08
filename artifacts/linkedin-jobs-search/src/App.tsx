@@ -24,6 +24,7 @@ function Home() {
   const [keywords, setKeywords] = useState('');
   const [location, setLocation] = useState('');
   const [searchParams, setSearchParams] = useState<SearchLinkedInGuestJobsParams | null>(null);
+  const [freshnessHours, setFreshnessHours] = useState(24);
   const params = searchParams ?? { keywords: '' };
   const search = useSearchLinkedInGuestJobs(params, {
     query: {
@@ -44,6 +45,16 @@ function Home() {
   }
 
   const jobs = search.data;
+  const freshestFirst = jobs
+    ? [...jobs].sort(
+        (first, second) =>
+          new Date(second.computedPostTime).getTime() -
+          new Date(first.computedPostTime).getTime(),
+      )
+    : [];
+  const visibleJobs = freshestFirst.filter(
+    (job) => job.relativeAgeMs <= freshnessHours * 60 * 60 * 1000,
+  );
 
   return (
     <div className="page-shell">
@@ -173,11 +184,48 @@ function Home() {
               <>
                 <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
                   <h2 className="font-serif text-xl font-bold tracking-tight" data-testid="text-results-heading">Recent listings</h2>
-                  <span className="text-xs font-medium text-[hsl(var(--muted-foreground))]" data-testid="text-results-count">{jobs.length} {jobs.length === 1 ? 'result' : 'results'}</span>
+                  <span className="text-xs font-semibold text-[hsl(var(--muted-foreground))]" data-testid="text-sort-order">Sorted by freshness · newest first</span>
                 </div>
-                <div className="space-y-3" data-testid="list-job-results">
-                  {jobs.map((job) => <JobCard key={job.id} job={job} />)}
+                <div className="mb-5 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 sm:flex sm:items-center sm:justify-between sm:gap-5">
+                  <div>
+                    <p className="mb-2 text-xs font-bold tracking-wide text-[hsl(var(--foreground))]">Posted within</p>
+                    <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by estimated posting age" data-testid="group-freshness-filters">
+                      {[1, 2, 6, 12, 24].map((hours) => {
+                        const selected = freshnessHours === hours;
+                        return (
+                          <button
+                            key={hours}
+                            type="button"
+                            aria-pressed={selected}
+                            aria-label={`Show jobs estimated within ${hours} ${hours === 1 ? 'hour' : 'hours'}`}
+                            onClick={() => setFreshnessHours(hours)}
+                            className={`min-h-10 rounded-lg border px-3.5 text-sm font-bold transition ${
+                              selected
+                                ? 'border-[hsl(var(--primary))] bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]'
+                                : 'border-[hsl(var(--border))] bg-[hsl(var(--background))] text-[hsl(var(--foreground))] hover:border-[hsl(var(--primary))]'
+                            }`}
+                            data-testid={`button-freshness-${hours}h`}
+                          >
+                            {hours} {hours === 1 ? 'hour' : 'hours'}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <p className="mt-3 text-xs leading-5 text-[hsl(var(--muted-foreground))] sm:mt-0 sm:max-w-52 sm:text-right" data-testid="text-freshness-count">
+                    {visibleJobs.length} of {jobs.length} jobs within the last {freshnessHours} {freshnessHours === 1 ? 'hour' : 'hours'}
+                  </p>
                 </div>
+                {visibleJobs.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-[hsl(var(--border))] bg-[hsl(var(--card))]/60 px-6 py-10 text-center" data-testid="empty-freshness-results">
+                    <h3 className="font-serif text-lg font-bold tracking-tight">No jobs in this time window</h3>
+                    <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-[hsl(var(--muted-foreground))]">Choose a wider window to see older recent listings.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3" data-testid="list-job-results">
+                    {visibleJobs.map((job) => <JobCard key={job.id} job={job} />)}
+                  </div>
+                )}
               </>
             )
           )}

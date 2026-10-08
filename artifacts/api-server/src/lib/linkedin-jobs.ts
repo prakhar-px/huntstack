@@ -14,6 +14,7 @@ export type ParsedLinkedInJob = {
   location: string | null;
   rawRelative: string;
   rawDateOnly: string | null;
+  relativeAgeMs: number;
   computedPostTime: string;
   timestampIsEstimate: true;
   timePrecision: TimePrecision;
@@ -154,6 +155,7 @@ export function parseLinkedInGuestTiming(
       location: locationText || null,
       rawRelative,
       rawDateOnly,
+      relativeAgeMs: parsedAge.deltaMs,
       computedPostTime: new Date(estimatedEpoch).toISOString(),
       timestampIsEstimate: true,
       timePrecision: parsedAge.precision,
