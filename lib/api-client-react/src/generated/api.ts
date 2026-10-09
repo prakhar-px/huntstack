@@ -147,6 +147,7 @@ export const getSearchLinkedInGuestJobsUrl = (params: SearchLinkedInGuestJobsPar
  * extracts relative posting labels, estimates UTC posting timestamps from
  * the scrape time, and sorts results newest first. The date-only datetime
  * attribute is returned for reference but is never used to calculate time.
+ * Optional experience levels are extracted from public job detail pages.
  * @summary Search recent LinkedIn guest job postings
  */
 export const searchLinkedInGuestJobs = async (params: SearchLinkedInGuestJobsParams, options?: Parameters<typeof customFetch>[1]): Promise<LinkedInGuestJob[]> => {

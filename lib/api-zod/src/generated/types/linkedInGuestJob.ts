@@ -5,6 +5,8 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { LinkedInGuestJobExperienceLevel } from './linkedInGuestJobExperienceLevel';
+import type { LinkedInGuestJobExperienceLevelStatus } from './linkedInGuestJobExperienceLevelStatus';
 import type { LinkedInGuestJobTimePrecision } from './linkedInGuestJobTimePrecision';
 
 export interface LinkedInGuestJob {
@@ -28,4 +30,11 @@ export interface LinkedInGuestJob {
   timestampIsEstimate: true;
   timePrecision: LinkedInGuestJobTimePrecision;
   verifiedUrl: string;
+  /**
+     * Seniority level listed on the LinkedIn job detail page; null when not available.
+     * @nullable
+     */
+  experienceLevel: LinkedInGuestJobExperienceLevel;
+  /** Whether seniority was requested and whether LinkedIn exposed a level. */
+  experienceLevelStatus: LinkedInGuestJobExperienceLevelStatus;
 }

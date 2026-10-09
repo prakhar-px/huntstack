@@ -3,7 +3,10 @@ import {
   SearchLinkedInGuestJobsQueryParams,
   SearchLinkedInGuestJobsResponse,
 } from "@workspace/api-zod";
-import { parseLinkedInGuestTiming } from "../lib/linkedin-jobs";
+import {
+  addLinkedInJobExperience,
+  parseLinkedInGuestTiming,
+} from "../lib/linkedin-jobs";
 
 const router: IRouter = Router();
 const LINKEDIN_GUEST_SEARCH_URL =
@@ -24,13 +27,22 @@ router.get("/linkedin/jobs", async (req, res): Promise<void> => {
   if (
     (req.query.location !== undefined &&
       typeof req.query.location !== "string") ||
-    (req.query.start !== undefined && typeof req.query.start !== "string")
+    (req.query.start !== undefined && typeof req.query.start !== "string") ||
+    (req.query.freshnessHours !== undefined &&
+      typeof req.query.freshnessHours !== "string") ||
+    (req.query.experienceLevel !== undefined &&
+      typeof req.query.experienceLevel !== "string")
   ) {
     res.status(400).json({ error: "Search parameters must appear only once." });
     return;
   }
 
-  const query = SearchLinkedInGuestJobsQueryParams.safeParse(req.query);
+  const query = SearchLinkedInGuestJobsQueryParams.safeParse({
+    ...req.query,
+    ...(typeof req.query.freshnessHours === "string"
+      ? { freshnessHours: Number(req.query.freshnessHours) }
+      : {}),
+  });
   if (!query.success) {
     res.status(400).json({ error: query.error.message });
     return;
@@ -47,7 +59,10 @@ router.get("/linkedin/jobs", async (req, res): Promise<void> => {
   upstreamUrl.searchParams.set("keywords", keywords);
   if (location) upstreamUrl.searchParams.set("location", location);
   upstreamUrl.searchParams.set("sortBy", "DD");
-  upstreamUrl.searchParams.set("f_TPR", "r86400");
+  upstreamUrl.searchParams.set(
+    "f_TPR",
+    `r${query.data.freshnessHours * 60 * 60}`,
+  );
   upstreamUrl.searchParams.set("start", String(query.data.start));
 
   let upstreamResponse: Response;
@@ -160,7 +175,10 @@ router.get("/linkedin/jobs", async (req, res): Promise<void> => {
     }
   }
 
-  const jobs = SearchLinkedInGuestJobsResponse.parse(parsed.jobs);
+  const jobsWithExperience = query.data.experienceLevel
+    ? await addLinkedInJobExperience(parsed.jobs)
+    : parsed.jobs;
+  const jobs = SearchLinkedInGuestJobsResponse.parse(jobsWithExperience);
   res.setHeader("X-LinkedIn-Scraped-At", new Date(scrapedAt).toISOString());
   res.json(jobs);
 });

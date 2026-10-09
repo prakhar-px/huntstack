@@ -6,6 +6,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
 import {
   searchLinkedInGuestJobs,
+  type ExperienceLevel,
   type LinkedInGuestJob,
   type SearchLinkedInGuestJobsParams,
 } from '@workspace/api-client-react';
@@ -20,21 +21,41 @@ import {
 const queryClient = new QueryClient();
 const LINKEDIN_PAGE_SIZE = 10;
 const MAX_LINKEDIN_START = 1000;
-const INITIAL_GUEST_PAGES = 5;
+const FRESHNESS_WINDOWS = [1, 2, 6, 12, 24] as const;
+type FreshnessWindow = (typeof FRESHNESS_WINDOWS)[number];
+const EXPERIENCE_OPTIONS: { value: ExperienceLevel; label: string }[] = [
+  { value: 'internship', label: 'Internship' },
+  { value: 'entry_level', label: 'Entry level' },
+  { value: 'associate', label: 'Associate' },
+  { value: 'mid_senior', label: 'Mid-Senior level' },
+  { value: 'director', label: 'Director' },
+  { value: 'executive', label: 'Executive' },
+  { value: 'not_applicable', label: 'Not applicable' },
+];
+
+function experienceLabel(level: ExperienceLevel) {
+  return EXPERIENCE_OPTIONS.find((option) => option.value === level)?.label ?? level;
+}
 
 function Home() {
   const [keywords, setKeywords] = useState('');
   const [location, setLocation] = useState('');
   const [searchParams, setSearchParams] = useState<SearchLinkedInGuestJobsParams | null>(null);
-  const [freshnessHours, setFreshnessHours] = useState(24);
+  const [freshnessHours, setFreshnessHours] = useState<FreshnessWindow>(24);
+  const [experienceLevel, setExperienceLevel] = useState<ExperienceLevel | ''>('');
   const search = useInfiniteQuery({
-    queryKey: ['linkedin-guest-jobs', searchParams],
+    queryKey: ['linkedin-guest-jobs', searchParams, freshnessHours, experienceLevel],
     enabled: Boolean(searchParams),
     initialPageParam: 0,
     queryFn: ({ pageParam, signal }) => {
       if (!searchParams) throw new Error('Search terms are required.');
       return searchLinkedInGuestJobs(
-        { ...searchParams, start: pageParam },
+        {
+          ...searchParams,
+          freshnessHours,
+          ...(experienceLevel ? { experienceLevel } : {}),
+          start: pageParam,
+        },
         { signal },
       );
     },
@@ -49,7 +70,6 @@ function Home() {
     if (
       !searchParams ||
       loadedPageCount === 0 ||
-      loadedPageCount >= INITIAL_GUEST_PAGES ||
       !search.hasNextPage ||
       search.isFetching ||
       search.isFetchNextPageError
@@ -59,6 +79,8 @@ function Home() {
     void search.fetchNextPage();
   }, [
     loadedPageCount,
+    experienceLevel,
+    freshnessHours,
     search.fetchNextPage,
     search.hasNextPage,
     search.isFetchNextPageError,
@@ -79,16 +101,31 @@ function Home() {
 
   const jobs = search.data?.pages.flatMap((page) => page) ?? [];
   const uniqueJobs = [...new Map(jobs.map((job) => [job.id, job])).values()];
-  const freshestFirst = uniqueJobs
-    ? [...jobs].sort(
-        (first, second) =>
-          new Date(second.computedPostTime).getTime() -
-          new Date(first.computedPostTime).getTime(),
-      )
-    : [];
-  const visibleJobs = freshestFirst.filter(
+  const freshestFirst = [...uniqueJobs].sort(
+    (first, second) =>
+      new Date(second.computedPostTime).getTime() -
+      new Date(first.computedPostTime).getTime(),
+  );
+  const recentJobs = freshestFirst.filter(
     (job) => job.relativeAgeMs <= freshnessHours * 60 * 60 * 1000,
   );
+  const visibleJobs = experienceLevel
+    ? recentJobs.filter(
+        (job) =>
+          job.experienceLevelStatus === 'available' &&
+          job.experienceLevel === experienceLevel,
+      )
+    : recentJobs;
+  const lastPageIndex = loadedPageCount - 1;
+  const lastPageStart = search.data?.pageParams[lastPageIndex];
+  const lastPage = search.data?.pages[lastPageIndex];
+  const reachedResultCap =
+    lastPageStart === MAX_LINKEDIN_START && (lastPage?.length ?? 0) > 0;
+  const collectionFinished =
+    loadedPageCount > 0 &&
+    !search.hasNextPage &&
+    !search.isFetchingNextPage &&
+    !search.isFetchNextPageError;
 
   return (
     <div className="page-shell">
@@ -147,8 +184,7 @@ function Home() {
           </label>
           <button
             type="submit"
-            disabled={search.isFetching}
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-6 text-sm font-bold text-[hsl(var(--primary-foreground))] transition hover:brightness-95 disabled:cursor-wait disabled:opacity-70 sm:w-auto"
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-6 text-sm font-bold text-[hsl(var(--primary-foreground))] transition hover:brightness-95 sm:w-auto"
             data-testid="button-search-jobs"
           >
             <Search size={16} aria-hidden="true" />
@@ -220,69 +256,101 @@ function Home() {
                   <h2 className="font-serif text-xl font-bold tracking-tight" data-testid="text-results-heading">Recent listings</h2>
                   <span className="text-xs font-semibold text-[hsl(var(--muted-foreground))]" data-testid="text-sort-order">Sorted by freshness · newest first</span>
                 </div>
-                <div className="mb-5 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 sm:flex sm:items-center sm:justify-between sm:gap-5">
-                  <div>
-                    <p className="mb-2 text-xs font-bold tracking-wide text-[hsl(var(--foreground))]">Posted within</p>
-                    <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by estimated posting age" data-testid="group-freshness-filters">
-                      {[1, 2, 6, 12, 24].map((hours) => {
-                        const selected = freshnessHours === hours;
-                        return (
-                          <button
-                            key={hours}
-                            type="button"
-                            aria-pressed={selected}
-                            aria-label={`Show jobs estimated within ${hours} ${hours === 1 ? 'hour' : 'hours'}`}
-                            onClick={() => setFreshnessHours(hours)}
-                            className={`min-h-10 rounded-lg border px-3.5 text-sm font-bold transition ${
-                              selected
-                                ? 'border-[hsl(var(--primary))] bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]'
-                                : 'border-[hsl(var(--border))] bg-[hsl(var(--background))] text-[hsl(var(--foreground))] hover:border-[hsl(var(--primary))]'
-                            }`}
-                            data-testid={`button-freshness-${hours}h`}
-                          >
-                            {hours} {hours === 1 ? 'hour' : 'hours'}
-                          </button>
-                        );
-                      })}
+                <div className="mb-5 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 sm:p-5">
+                  <div className="grid gap-4 sm:grid-cols-[1fr_240px] sm:items-end">
+                    <div>
+                      <p className="mb-2 text-xs font-bold tracking-wide text-[hsl(var(--foreground))]">Posted within</p>
+                      <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by estimated posting age" data-testid="group-freshness-filters">
+                        {FRESHNESS_WINDOWS.map((hours) => {
+                          const selected = freshnessHours === hours;
+                          return (
+                            <button
+                              key={hours}
+                              type="button"
+                              aria-pressed={selected}
+                              aria-label={`Show jobs estimated within ${hours} ${hours === 1 ? 'hour' : 'hours'}`}
+                              onClick={() => setFreshnessHours(hours)}
+                              className={`min-h-10 rounded-lg border px-3.5 text-sm font-bold transition ${
+                                selected
+                                  ? 'border-[hsl(var(--primary))] bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]'
+                                  : 'border-[hsl(var(--border))] bg-[hsl(var(--background))] text-[hsl(var(--foreground))] hover:border-[hsl(var(--primary))]'
+                              }`}
+                              data-testid={`button-freshness-${hours}h`}
+                            >
+                              {hours} {hours === 1 ? 'hour' : 'hours'}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <label className="block">
+                      <span className="mb-2 block text-xs font-bold tracking-wide text-[hsl(var(--foreground))]">Experience level</span>
+                      <select
+                        value={experienceLevel}
+                        onChange={(event) => setExperienceLevel(event.target.value as ExperienceLevel | '')}
+                        aria-label="Filter by experience level"
+                        className="h-10 w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 text-sm font-semibold text-[hsl(var(--foreground))] outline-none focus:border-[hsl(var(--primary))] focus:ring-2 focus:ring-[hsl(var(--primary))]/15"
+                        data-testid="select-experience-level"
+                      >
+                        <option value="">Any experience</option>
+                        {EXPERIENCE_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>{option.label}</option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                  <div className="mt-4 flex flex-col gap-2 border-t border-[hsl(var(--border))] pt-3 text-xs leading-5 text-[hsl(var(--muted-foreground))] sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p data-testid="text-freshness-count">
+                        {visibleJobs.length} matching jobs · {uniqueJobs.length} loaded within the last {freshnessHours} {freshnessHours === 1 ? 'hour' : 'hours'}
+                      </p>
+                      {experienceLevel && (
+                        <p className="mt-1" data-testid="text-experience-coverage">
+                          {recentJobs.filter((job) => job.experienceLevelStatus !== 'available').length > 0
+                            ? `Seniority is missing or unavailable for ${recentJobs.filter((job) => job.experienceLevelStatus !== 'available').length} recent listings; they are excluded from this filter.`
+                            : 'Seniority levels are available for all loaded listings in this time window.'}
+                        </p>
+                      )}
+                    </div>
+                    <div className="sm:text-right" aria-live="polite" data-testid="text-auto-load-status">
+                      {search.isFetchingNextPage
+                        ? `Loading more results automatically · ${uniqueJobs.length} loaded`
+                        : search.isFetchNextPageError
+                          ? (
+                            <span className="inline-flex flex-wrap items-center gap-2 text-[hsl(var(--destructive))]">
+                              Couldn’t fetch the next page.
+                              <button
+                                type="button"
+                                onClick={() => void search.fetchNextPage()}
+                                className="font-bold underline underline-offset-2"
+                                data-testid="button-retry-more-jobs"
+                              >
+                                Retry
+                              </button>
+                            </span>
+                          )
+                          : reachedResultCap
+                            ? 'LinkedIn’s public result limit was reached; more jobs may exist.'
+                            : collectionFinished
+                              ? 'All available public guest pages are loaded.'
+                              : 'Fetching all available public guest pages automatically…'}
                     </div>
                   </div>
-                  <p className="mt-3 text-xs leading-5 text-[hsl(var(--muted-foreground))] sm:mt-0 sm:max-w-52 sm:text-right" data-testid="text-freshness-count">
-                    {visibleJobs.length} of {uniqueJobs.length} loaded jobs within the last {freshnessHours} {freshnessHours === 1 ? 'hour' : 'hours'}
-                  </p>
                 </div>
                 {visibleJobs.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-[hsl(var(--border))] bg-[hsl(var(--card))]/60 px-6 py-10 text-center" data-testid="empty-freshness-results">
-                    <h3 className="font-serif text-lg font-bold tracking-tight">No jobs in this time window</h3>
-                    <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-[hsl(var(--muted-foreground))]">Choose a wider window to see older recent listings.</p>
+                    <h3 className="font-serif text-lg font-bold tracking-tight">
+                      {experienceLevel ? 'No listings match this experience level' : 'No jobs in this time window'}
+                    </h3>
+                    <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-[hsl(var(--muted-foreground))]">
+                      {experienceLevel
+                        ? 'Try another level, or choose “Any experience” to see all recent listings.'
+                        : 'Choose a wider window to see older recent listings.'}
+                    </p>
                   </div>
                 ) : (
                   <div className="space-y-3" data-testid="list-job-results">
                     {visibleJobs.map((job) => <JobCard key={job.id} job={job} />)}
-                  </div>
-                )}
-                {search.isFetchNextPageError && (
-                  <p className="mt-4 text-center text-sm text-[hsl(var(--destructive))]" role="alert">
-                    Couldn’t load the next batch. The jobs already fetched are still available.
-                  </p>
-                )}
-                {search.hasNextPage && (
-                  <div className="mt-5 flex flex-col items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => void search.fetchNextPage()}
-                      disabled={search.isFetchingNextPage}
-                      className="min-h-11 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-5 text-sm font-bold text-[hsl(var(--foreground))] transition hover:border-[hsl(var(--primary))] disabled:cursor-wait disabled:opacity-70"
-                      data-testid="button-load-more-jobs"
-                    >
-                      {search.isFetchingNextPage
-                        ? 'Loading more jobs…'
-                        : search.isFetchNextPageError
-                          ? 'Retry loading more'
-                          : 'Load 10 more jobs'}
-                    </button>
-                    <p className="text-center text-xs leading-5 text-[hsl(var(--muted-foreground))]">
-                      {uniqueJobs.length} public guest listings loaded. LinkedIn may have more pages, and its signed-in feed can differ.
-                    </p>
                   </div>
                 )}
               </>

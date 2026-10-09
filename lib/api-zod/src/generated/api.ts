@@ -22,12 +22,14 @@ export const HealthCheckResponse = zod.object({
  * extracts relative posting labels, estimates UTC posting timestamps from
  * the scrape time, and sorts results newest first. The date-only datetime
  * attribute is returned for reference but is never used to calculate time.
+ * Optional experience levels are extracted from public job detail pages.
  * @summary Search recent LinkedIn guest job postings
  */
 export const searchLinkedInGuestJobsQueryKeywordsMax = 150;
 
 export const searchLinkedInGuestJobsQueryLocationMax = 120;
 
+export const searchLinkedInGuestJobsQueryFreshnessHoursDefault = 24;
 export const searchLinkedInGuestJobsQueryStartDefault = 0;
 export const searchLinkedInGuestJobsQueryStartMin = 0;
 export const searchLinkedInGuestJobsQueryStartMax = 1000;
@@ -37,6 +39,8 @@ export const searchLinkedInGuestJobsQueryStartMax = 1000;
 export const SearchLinkedInGuestJobsQueryParams = zod.object({
   "keywords": zod.coerce.string().min(1).max(searchLinkedInGuestJobsQueryKeywordsMax).describe('Job title, skill, or search phrase.'),
   "location": zod.coerce.string().max(searchLinkedInGuestJobsQueryLocationMax).optional().describe('Optional location filter.'),
+  "freshnessHours": zod.union([zod.literal(1),zod.literal(2),zod.literal(6),zod.literal(12),zod.literal(24)]).default(searchLinkedInGuestJobsQueryFreshnessHoursDefault).describe('LinkedIn posting window, mapped to its public time filter.'),
+  "experienceLevel": zod.enum(['internship', 'entry_level', 'associate', 'mid_senior', 'director', 'executive', 'not_applicable']).optional().describe('Optional seniority level to extract from each public job detail page.'),
   "start": zod.coerce.number().int().min(searchLinkedInGuestJobsQueryStartMin).max(searchLinkedInGuestJobsQueryStartMax).default(searchLinkedInGuestJobsQueryStartDefault).describe('LinkedIn page offset. Each page is limited by LinkedIn.')
 })
 
@@ -56,7 +60,9 @@ export const SearchLinkedInGuestJobsResponseItem = zod.object({
   "computedPostTime": zod.coerce.date().describe('Estimated UTC time derived from the displayed relative label and scrape time.'),
   "timestampIsEstimate": zod.literal(true),
   "timePrecision": zod.enum(['second', 'minute', 'hour', 'day']),
-  "verifiedUrl": zod.string().url()
+  "verifiedUrl": zod.string().url(),
+  "experienceLevel": zod.union([zod.literal('internship'),zod.literal('entry_level'),zod.literal('associate'),zod.literal('mid_senior'),zod.literal('director'),zod.literal('executive'),zod.literal('not_applicable'),zod.literal(null)]).nullable().describe('Seniority level listed on the LinkedIn job detail page; null when not available.'),
+  "experienceLevelStatus": zod.enum(['not_requested', 'available', 'not_listed', 'unavailable']).describe('Whether seniority was requested and whether LinkedIn exposed a level.')
 })
 export const SearchLinkedInGuestJobsResponse = zod.array(SearchLinkedInGuestJobsResponseItem)
 

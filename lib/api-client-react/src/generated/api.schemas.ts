@@ -19,6 +19,36 @@ export const LinkedInGuestJobTimePrecision = {
   day: 'day',
 } as const;
 
+/**
+ * Seniority level listed on the LinkedIn job detail page; null when not available.
+ * @nullable
+ */
+export type LinkedInGuestJobExperienceLevel = typeof LinkedInGuestJobExperienceLevel[keyof typeof LinkedInGuestJobExperienceLevel] | null;
+
+
+export const LinkedInGuestJobExperienceLevel = {
+  internship: 'internship',
+  entry_level: 'entry_level',
+  associate: 'associate',
+  mid_senior: 'mid_senior',
+  director: 'director',
+  executive: 'executive',
+  not_applicable: 'not_applicable',
+} as const;
+
+/**
+ * Whether seniority was requested and whether LinkedIn exposed a level.
+ */
+export type LinkedInGuestJobExperienceLevelStatus = typeof LinkedInGuestJobExperienceLevelStatus[keyof typeof LinkedInGuestJobExperienceLevelStatus];
+
+
+export const LinkedInGuestJobExperienceLevelStatus = {
+  not_requested: 'not_requested',
+  available: 'available',
+  not_listed: 'not_listed',
+  unavailable: 'unavailable',
+} as const;
+
 export interface LinkedInGuestJob {
   /** @pattern ^[0-9]+$ */
   id: string;
@@ -40,7 +70,27 @@ export interface LinkedInGuestJob {
   timestampIsEstimate: true;
   timePrecision: LinkedInGuestJobTimePrecision;
   verifiedUrl: string;
+  /**
+     * Seniority level listed on the LinkedIn job detail page; null when not available.
+     * @nullable
+     */
+  experienceLevel: LinkedInGuestJobExperienceLevel;
+  /** Whether seniority was requested and whether LinkedIn exposed a level. */
+  experienceLevelStatus: LinkedInGuestJobExperienceLevelStatus;
 }
+
+export type ExperienceLevel = typeof ExperienceLevel[keyof typeof ExperienceLevel];
+
+
+export const ExperienceLevel = {
+  internship: 'internship',
+  entry_level: 'entry_level',
+  associate: 'associate',
+  mid_senior: 'mid_senior',
+  director: 'director',
+  executive: 'executive',
+  not_applicable: 'not_applicable',
+} as const;
 
 export interface ErrorResponse {
   error: string;
@@ -59,10 +109,29 @@ keywords: string;
  */
 location?: string;
 /**
+ * LinkedIn posting window, mapped to its public time filter.
+ */
+freshnessHours?: SearchLinkedInGuestJobsFreshnessHours;
+/**
+ * Optional seniority level to extract from each public job detail page.
+ */
+experienceLevel?: ExperienceLevel;
+/**
  * LinkedIn page offset. Each page is limited by LinkedIn.
  * @minimum 0
  * @maximum 1000
  */
 start?: number;
 };
+
+export type SearchLinkedInGuestJobsFreshnessHours = typeof SearchLinkedInGuestJobsFreshnessHours[keyof typeof SearchLinkedInGuestJobsFreshnessHours];
+
+
+export const SearchLinkedInGuestJobsFreshnessHours = {
+  NUMBER_1: 1,
+  NUMBER_2: 2,
+  NUMBER_6: 6,
+  NUMBER_12: 12,
+  NUMBER_24: 24,
+} as const;
 

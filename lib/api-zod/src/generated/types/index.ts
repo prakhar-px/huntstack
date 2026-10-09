@@ -7,7 +7,11 @@
  */
 
 export * from './errorResponse';
+export * from './experienceLevel';
 export * from './healthStatus';
 export * from './linkedInGuestJob';
+export * from './linkedInGuestJobExperienceLevel';
+export * from './linkedInGuestJobExperienceLevelStatus';
 export * from './linkedInGuestJobTimePrecision';
+export * from './searchLinkedInGuestJobsFreshnessHours';
 export * from './searchLinkedInGuestJobsParams';

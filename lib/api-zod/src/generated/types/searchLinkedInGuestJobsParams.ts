@@ -5,6 +5,8 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ExperienceLevel } from './experienceLevel';
+import type { SearchLinkedInGuestJobsFreshnessHours } from './searchLinkedInGuestJobsFreshnessHours';
 
 export type SearchLinkedInGuestJobsParams = {
 /**
@@ -18,6 +20,14 @@ keywords: string;
  * @maxLength 120
  */
 location?: string;
+/**
+ * LinkedIn posting window, mapped to its public time filter.
+ */
+freshnessHours?: SearchLinkedInGuestJobsFreshnessHours;
+/**
+ * Optional seniority level to extract from each public job detail page.
+ */
+experienceLevel?: ExperienceLevel;
 /**
  * LinkedIn page offset. Each page is limited by LinkedIn.
  * @minimum 0

@@ -36,6 +36,7 @@ paths:
         extracts relative posting labels, estimates UTC posting timestamps from
         the scrape time, and sorts results newest first. The date-only datetime
         attribute is returned for reference but is never used to calculate time.
+        Optional experience levels are extracted from public job detail pages.
       parameters:
         - name: keywords
           in: query
@@ -52,6 +53,20 @@ paths:
           schema:
             type: string
             maxLength: 120
+        - name: freshnessHours
+          in: query
+          required: false
+          description: LinkedIn posting window, mapped to its public time filter.
+          schema:
+            type: integer
+            enum: [1, 2, 6, 12, 24]
+            default: 24
+        - name: experienceLevel
+          in: query
+          required: false
+          description: Optional seniority level to extract from each public job detail page.
+          schema:
+            $ref: "#/components/schemas/ExperienceLevel"
         - name: start
           in: query
           required: false
@@ -136,6 +151,14 @@ components:
         verifiedUrl:
           type: string
           format: uri
+        experienceLevel:
+          type: ["string", "null"]
+          enum: [internship, entry_level, associate, mid_senior, director, executive, not_applicable, null]
+          description: Seniority level listed on the LinkedIn job detail page; null when not available.
+        experienceLevelStatus:
+          type: string
+          enum: [not_requested, available, not_listed, unavailable]
+          description: Whether seniority was requested and whether LinkedIn exposed a level.
       required:
         - id
         - title
@@ -148,6 +171,11 @@ components:
         - timestampIsEstimate
         - timePrecision
         - verifiedUrl
+        - experienceLevel
+        - experienceLevelStatus
+    ExperienceLevel:
+      type: string
+      enum: [internship, entry_level, associate, mid_senior, director, executive, not_applicable]
     ErrorResponse:
       type: object
       properties:

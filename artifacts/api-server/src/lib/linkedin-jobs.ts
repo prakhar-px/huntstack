@@ -1,4 +1,8 @@
 import * as cheerio from "cheerio";
+import type {
+  ExperienceLevel,
+  LinkedInGuestJobExperienceLevelStatus,
+} from "@workspace/api-zod";
 
 export type TimePrecision = "second" | "minute" | "hour" | "day";
 
@@ -19,7 +23,14 @@ export type ParsedLinkedInJob = {
   timestampIsEstimate: true;
   timePrecision: TimePrecision;
   verifiedUrl: string;
+  experienceLevel: ExperienceLevel | null;
+  experienceLevelStatus: LinkedInGuestJobExperienceLevelStatus;
 };
+
+export type ParsedJobExperience = Pick<
+  ParsedLinkedInJob,
+  "experienceLevel" | "experienceLevelStatus"
+>;
 
 export type LinkedInParseResult = {
   jobs: ParsedLinkedInJob[];
@@ -33,6 +44,117 @@ const timeUnits = {
   hour: 3_600_000,
   day: 86_400_000,
 } as const;
+
+const experienceLabels: Record<string, ExperienceLevel> = {
+  internship: "internship",
+  "entry level": "entry_level",
+  associate: "associate",
+  "mid senior level": "mid_senior",
+  director: "director",
+  executive: "executive",
+  "not applicable": "not_applicable",
+};
+
+const experienceCache = new Map<
+  string,
+  { value: ParsedJobExperience; expiresAt: number }
+>();
+const EXPERIENCE_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const JOB_DETAIL_TIMEOUT_MS = 8_000;
+
+function unavailableExperience(): ParsedJobExperience {
+  return { experienceLevel: null, experienceLevelStatus: "unavailable" };
+}
+
+async function fetchJobExperience(id: string): Promise<ParsedJobExperience> {
+  const cached = experienceCache.get(id);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+  if (cached) experienceCache.delete(id);
+
+  let value: ParsedJobExperience = unavailableExperience();
+  try {
+    const response = await fetch(`https://www.linkedin.com/jobs/view/${id}`, {
+      headers: {
+        accept: "text/html,application/xhtml+xml",
+        "accept-language": "en-US,en;q=0.8",
+        "user-agent": "LinkedInGuestJobTimingService/1.0",
+      },
+      signal: AbortSignal.timeout(JOB_DETAIL_TIMEOUT_MS),
+    });
+
+    if (
+      response.ok &&
+      response.headers.get("content-type")?.toLowerCase().includes("text/html")
+    ) {
+      const html = await response.text();
+      if (
+        html.length <= 5_000_000 &&
+        html.includes("description__job-criteria-list")
+      ) {
+        const $ = cheerio.load(html);
+        let seniorityText = "";
+        $(".description__job-criteria-item").each((_, element) => {
+          const item = $(element);
+          const label = cleanText(
+            item.find(".description__job-criteria-subheader").text(),
+          ).toLowerCase();
+          if (label === "seniority level") {
+            seniorityText = cleanText(
+              item.find(".description__job-criteria-text").text(),
+            );
+          }
+        });
+
+        if (!seniorityText) {
+          value = { experienceLevel: null, experienceLevelStatus: "not_listed" };
+        } else {
+          const normalized = seniorityText
+            .toLowerCase()
+            .replace(/[–—]/g, "-")
+            .replace(/[^a-z]+/g, " ")
+            .trim();
+          const experienceLevel = experienceLabels[normalized];
+          value = experienceLevel
+            ? { experienceLevel, experienceLevelStatus: "available" }
+            : unavailableExperience();
+        }
+      }
+    }
+  } catch {
+    // A missing or blocked detail page cannot be used to infer seniority.
+  }
+
+  experienceCache.set(id, {
+    value,
+    expiresAt:
+      Date.now() +
+      (value.experienceLevelStatus === "unavailable"
+        ? 60_000
+        : EXPERIENCE_CACHE_TTL_MS),
+  });
+  return value;
+}
+
+export async function addLinkedInJobExperience(
+  jobs: ParsedLinkedInJob[],
+): Promise<ParsedLinkedInJob[]> {
+  const enriched = [...jobs];
+  let nextIndex = 0;
+  const workerCount = Math.min(3, jobs.length);
+
+  await Promise.all(
+    Array.from({ length: workerCount }, async () => {
+      while (true) {
+        const index = nextIndex++;
+        const job = jobs[index];
+        if (!job) return;
+        enriched[index] = { ...job, ...(await fetchJobExperience(job.id)) };
+      }
+    }),
+  );
+
+  return enriched;
+}
 
 export function parseRelativeAge(rawRelative: string): ParsedRelativeAge | null {
   const normalized = rawRelative
@@ -160,6 +282,8 @@ export function parseLinkedInGuestTiming(
       timestampIsEstimate: true,
       timePrecision: parsedAge.precision,
       verifiedUrl: `https://www.linkedin.com/jobs/view/${id}`,
+      experienceLevel: null,
+      experienceLevelStatus: "not_requested",
     });
   });
 
