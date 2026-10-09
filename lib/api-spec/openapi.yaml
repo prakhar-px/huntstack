@@ -128,8 +128,19 @@ components:
           type: string
         company:
           type: ["string", "null"]
+        companyLogoUrl:
+          type: ["string", "null"]
+          format: uri
+          description: Public company logo URL from the LinkedIn guest search card, when available.
+        companyProfileUrl:
+          type: ["string", "null"]
+          format: uri
+          description: LinkedIn company or school profile URL from the guest search card, when available.
         location:
           type: ["string", "null"]
+        jobInsight:
+          type: ["string", "null"]
+          description: Optional insight label shown on the LinkedIn guest search card.
         rawRelative:
           type: string
         rawDateOnly:
@@ -163,7 +174,10 @@ components:
         - id
         - title
         - company
+        - companyLogoUrl
+        - companyProfileUrl
         - location
+        - jobInsight
         - rawRelative
         - rawDateOnly
         - relativeAgeMs

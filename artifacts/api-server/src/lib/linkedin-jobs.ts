@@ -15,7 +15,10 @@ export type ParsedLinkedInJob = {
   id: string;
   title: string;
   company: string | null;
+  companyLogoUrl: string | null;
+  companyProfileUrl: string | null;
   location: string | null;
+  jobInsight: string | null;
   rawRelative: string;
   rawDateOnly: string | null;
   relativeAgeMs: number;
@@ -210,6 +213,48 @@ function cleanText(value: string): string {
   return value.replace(/\s+/g, " ").trim();
 }
 
+function extractCompanyLogoUrl(...candidates: Array<string | undefined>): string | null {
+  for (const candidate of candidates) {
+    if (!candidate?.trim()) continue;
+
+    try {
+      const url = new URL(candidate.trim());
+      if (url.protocol === "https:" && url.hostname === "media.licdn.com") {
+        return url.toString();
+      }
+    } catch {
+      // Ignore malformed logo URLs and keep trying other image attributes.
+    }
+  }
+
+  return null;
+}
+
+function extractCompanyProfileUrl(href: string): string | null {
+  try {
+    const url = new URL(href, "https://www.linkedin.com");
+    if (
+      (url.hostname !== "linkedin.com" &&
+        !url.hostname.endsWith(".linkedin.com")) ||
+      url.protocol !== "https:"
+    ) {
+      return null;
+    }
+
+    const pathParts = url.pathname.split("/").filter(Boolean);
+    if (
+      pathParts.length < 2 ||
+      (pathParts[0] !== "company" && pathParts[0] !== "school")
+    ) {
+      return null;
+    }
+
+    return `https://www.linkedin.com/${pathParts.slice(0, 2).join("/")}/`;
+  } catch {
+    return null;
+  }
+}
+
 function extractJobId(href: string): string | null {
   try {
     const url = new URL(href, "https://www.linkedin.com");
@@ -264,8 +309,24 @@ export function parseLinkedInGuestTiming(
     const companyText = cleanText(
       card.find(".base-search-card__subtitle").first().text(),
     );
+    const companyLink = card
+      .find(".base-search-card__subtitle a")
+      .first()
+      .attr("href");
+    const companyImage = card.find(".artdeco-entity-image").first();
+    const companyLogoUrl = extractCompanyLogoUrl(
+      companyImage.attr("data-delayed-url"),
+      companyImage.attr("src"),
+      companyImage.attr("data-src"),
+    );
     const locationText = cleanText(
       card.find(".job-search-card__location").first().text(),
+    );
+    const jobInsightText = cleanText(
+      card
+        .find(".job-posting-benefits__text, .job-search-card__job-insight")
+        .first()
+        .text(),
     );
     const rawDateOnly = timeElement.attr("datetime")?.trim() || null;
     const estimatedEpoch = scrapeTime - parsedAge.deltaMs;
@@ -274,7 +335,12 @@ export function parseLinkedInGuestTiming(
       id,
       title,
       company: companyText || null,
+      companyLogoUrl,
+      companyProfileUrl: companyLink
+        ? extractCompanyProfileUrl(companyLink)
+        : null,
       location: locationText || null,
+      jobInsight: jobInsightText || null,
       rawRelative,
       rawDateOnly,
       relativeAgeMs: parsedAge.deltaMs,

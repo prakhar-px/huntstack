@@ -17,7 +17,7 @@ import {
   type LinkedInGuestJob,
   type SearchLinkedInGuestJobsParams,
 } from '@workspace/api-client-react';
-import { ArrowUpRight, BriefcaseBusiness, Clock3, MapPin, Search, TriangleAlert } from 'lucide-react';
+import { ArrowUpRight, BriefcaseBusiness, Building2, Clock3, MapPin, Search, TriangleAlert } from 'lucide-react';
 import {
   Route,
   Switch,
@@ -444,6 +444,7 @@ function Home() {
 }
 
 function JobCard({ job }: { job: LinkedInGuestJob }) {
+  const [logoFailed, setLogoFailed] = useState(false);
   const estimate = new Date(job.computedPostTime);
   const timeOptions: Intl.DateTimeFormatOptions = job.timePrecision === 'day'
     ? {}
@@ -472,12 +473,42 @@ function JobCard({ job }: { job: LinkedInGuestJob }) {
       data-testid={`card-job-${job.id}`}
     >
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <h3 className="font-serif text-lg font-bold leading-snug tracking-[-.02em] text-[hsl(var(--foreground))]" data-testid={`text-job-title-${job.id}`}>{job.title}</h3>
-          <p className="mt-1 text-sm font-semibold text-[hsl(var(--foreground))]" data-testid={`text-job-company-${job.id}`}>{job.company || 'Company not listed'}</p>
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))]">
+            {job.companyLogoUrl && !logoFailed ? (
+              <img
+                src={job.companyLogoUrl}
+                alt={`${job.company || 'Company'} logo`}
+                loading="lazy"
+                referrerPolicy="no-referrer"
+                onError={() => setLogoFailed(true)}
+                className="size-full object-contain p-1"
+                data-testid={`img-company-logo-${job.id}`}
+              />
+            ) : (
+              <Building2 size={20} className="text-[hsl(var(--muted-foreground))]" aria-hidden="true" />
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <h3 className="font-serif text-lg font-bold leading-snug tracking-[-.02em] text-[hsl(var(--foreground))]" data-testid={`text-job-title-${job.id}`}>{job.title}</h3>
+            {job.companyProfileUrl ? (
+              <a
+                href={job.companyProfileUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-1 inline-block text-sm font-semibold text-[hsl(var(--foreground))] underline-offset-2 hover:underline"
+                data-testid={`link-company-${job.id}`}
+              >
+                {job.company || 'Company not listed'}
+              </a>
+            ) : (
+              <p className="mt-1 text-sm font-semibold text-[hsl(var(--foreground))]" data-testid={`text-job-company-${job.id}`}>{job.company || 'Company not listed'}</p>
+            )}
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-[hsl(var(--muted-foreground))]">
             {job.location && <span className="inline-flex items-center gap-1.5" data-testid={`text-job-location-${job.id}`}><MapPin size={13} aria-hidden="true" />{job.location}</span>}
             <span className="inline-flex items-center gap-1.5" data-testid={`text-job-relative-${job.id}`}><Clock3 size={13} aria-hidden="true" />{job.rawRelative}</span>
+            {job.jobInsight && <span className="inline-flex items-center rounded-full bg-[hsl(var(--primary)/.1)] px-2.5 py-1 font-semibold text-[hsl(var(--primary))]" data-testid={`text-job-insight-${job.id}`}>{job.jobInsight}</span>}
+          </div>
           </div>
         </div>
         <a href={job.verifiedUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 self-start rounded-lg border border-[hsl(var(--border))] px-3.5 text-xs font-bold text-[hsl(var(--foreground))] transition hover:border-[hsl(var(--primary))] hover:text-[hsl(var(--primary))] focus-visible:outline-2 focus-visible:outline-[hsl(var(--ring))]" data-testid={`link-job-${job.id}`}>
