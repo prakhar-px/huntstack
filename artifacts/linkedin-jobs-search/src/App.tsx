@@ -1,4 +1,11 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from 'react';
 import { QueryClient, QueryClientProvider, useInfiniteQuery } from '@tanstack/react-query';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
@@ -37,6 +44,26 @@ function experienceLabel(level: ExperienceLevel) {
   return EXPERIENCE_OPTIONS.find((option) => option.value === level)?.label ?? level;
 }
 
+type JobScrollAnchor = { jobId: string; top: number };
+
+function getVisibleJobScrollAnchor(): JobScrollAnchor | null {
+  const centerX = Math.max(0, Math.min(window.innerWidth - 1, window.innerWidth / 2));
+  const verticalChecks = [0.5, 0.4, 0.6, 0.3, 0.7, 0.2, 0.8];
+
+  for (const ratio of verticalChecks) {
+    const y = Math.max(0, Math.min(window.innerHeight - 1, window.innerHeight * ratio));
+    const card = document
+      .elementFromPoint(centerX, y)
+      ?.closest<HTMLElement>('[data-job-id]');
+    const jobId = card?.dataset.jobId;
+    if (card && jobId) {
+      return { jobId, top: card.getBoundingClientRect().top };
+    }
+  }
+
+  return null;
+}
+
 function Home() {
   const [keywords, setKeywords] = useState('');
   const [location, setLocation] = useState('');
@@ -65,6 +92,57 @@ function Home() {
         : undefined,
   });
   const loadedPageCount = search.data?.pages.length ?? 0;
+  const resultsSessionKey = JSON.stringify([
+    searchParams?.keywords ?? null,
+    searchParams?.location ?? null,
+    freshnessHours,
+    experienceLevel,
+  ]);
+  const scrollAnchorRef = useRef<JobScrollAnchor | null>(null);
+  const scrollAnchorSessionRef = useRef(resultsSessionKey);
+
+  useEffect(() => {
+    let frameId: number | null = null;
+    const captureAnchor = () => {
+      if (frameId !== null) window.cancelAnimationFrame(frameId);
+      frameId = window.requestAnimationFrame(() => {
+        scrollAnchorRef.current = getVisibleJobScrollAnchor();
+        frameId = null;
+      });
+    };
+
+    captureAnchor();
+    window.addEventListener('scroll', captureAnchor, { passive: true });
+    window.addEventListener('resize', captureAnchor);
+    return () => {
+      if (frameId !== null) window.cancelAnimationFrame(frameId);
+      window.removeEventListener('scroll', captureAnchor);
+      window.removeEventListener('resize', captureAnchor);
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    if (scrollAnchorSessionRef.current !== resultsSessionKey) {
+      scrollAnchorSessionRef.current = resultsSessionKey;
+      scrollAnchorRef.current = getVisibleJobScrollAnchor();
+      return;
+    }
+
+    if (search.data?.pages.length) {
+      const previousAnchor = scrollAnchorRef.current;
+      const anchoredCard = previousAnchor
+        ? document.getElementById(`job-card-${previousAnchor.jobId}`)
+        : null;
+
+      if (previousAnchor && anchoredCard) {
+        const positionChange =
+          anchoredCard.getBoundingClientRect().top - previousAnchor.top;
+        if (Math.abs(positionChange) > 1) window.scrollBy(0, positionChange);
+      }
+    }
+
+    scrollAnchorRef.current = getVisibleJobScrollAnchor();
+  }, [loadedPageCount, resultsSessionKey, search.data?.pages]);
 
   useEffect(() => {
     if (
@@ -387,7 +465,12 @@ function JobCard({ job }: { job: LinkedInGuestJob }) {
       }).format(estimate);
 
   return (
-    <article className="job-card rounded-2xl border border-[hsl(var(--card-border))] bg-[hsl(var(--card))] p-5 sm:px-6 sm:py-5" data-testid={`card-job-${job.id}`}>
+    <article
+      id={`job-card-${job.id}`}
+      data-job-id={job.id}
+      className="job-card rounded-2xl border border-[hsl(var(--card-border))] bg-[hsl(var(--card))] p-5 sm:px-6 sm:py-5"
+      data-testid={`card-job-${job.id}`}
+    >
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <h3 className="font-serif text-lg font-bold leading-snug tracking-[-.02em] text-[hsl(var(--foreground))]" data-testid={`text-job-title-${job.id}`}>{job.title}</h3>
