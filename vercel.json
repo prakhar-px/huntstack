@@ -1,10 +1,13 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "installCommand": "pnpm install --frozen-lockfile",
-  "buildCommand": "PORT=22735 BASE_PATH=/ pnpm --filter @workspace/linkedin-jobs-search run build",
+  "buildCommand": "PORT=22735 BASE_PATH=/ pnpm --filter @workspace/linkedin-jobs-search run build && pnpm --filter @workspace/api-server run build:vercel",
   "outputDirectory": "artifacts/linkedin-jobs-search/dist/public",
   "functions": {
-    "api/*.ts": {
+    "api/*.js": {
+      "maxDuration": 60
+    },
+    "api/**/*.js": {
       "maxDuration": 60
     }
   },
