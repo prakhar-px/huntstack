@@ -15,8 +15,23 @@ export interface LinkedInGuestJob {
   title: string;
   /** @nullable */
   company: string | null;
+  /**
+     * Public company logo URL from the LinkedIn guest search card, when available.
+     * @nullable
+     */
+  companyLogoUrl: string | null;
+  /**
+     * LinkedIn company or school profile URL from the guest search card, when available.
+     * @nullable
+     */
+  companyProfileUrl: string | null;
   /** @nullable */
   location: string | null;
+  /**
+     * Optional insight label shown on the LinkedIn guest search card.
+     * @nullable
+     */
+  jobInsight: string | null;
   rawRelative: string;
   /** @nullable */
   rawDateOnly: string | null;

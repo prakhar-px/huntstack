@@ -44,6 +44,44 @@ function experienceLabel(level: ExperienceLevel) {
   return EXPERIENCE_OPTIONS.find((option) => option.value === level)?.label ?? level;
 }
 
+type RecencyHighlight = {
+  pill: string;
+  dot: string;
+  title: string;
+};
+
+// Colour-codes the relative posting label so fresher roles stand out at a glance.
+function getRecencyHighlight(relativeAgeMs: number): RecencyHighlight {
+  const hours = relativeAgeMs / 3_600_000;
+
+  if (hours < 1) {
+    return {
+      pill: 'border-[hsl(152_45%_76%)] bg-[hsl(152_58%_93%)] text-[hsl(158_64%_25%)]',
+      dot: 'bg-[hsl(158_64%_40%)]',
+      title: 'Posted within the last hour',
+    };
+  }
+  if (hours < 6) {
+    return {
+      pill: 'border-[hsl(40_75%_76%)] bg-[hsl(42_90%_92%)] text-[hsl(28_72%_28%)]',
+      dot: 'bg-[hsl(35_88%_48%)]',
+      title: 'Posted within the last 6 hours',
+    };
+  }
+  if (hours < 24) {
+    return {
+      pill: 'border-[hsl(205_62%_80%)] bg-[hsl(205_82%_94%)] text-[hsl(211_72%_30%)]',
+      dot: 'bg-[hsl(211_78%_50%)]',
+      title: 'Posted today',
+    };
+  }
+  return {
+    pill: 'border-[hsl(var(--border))] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]',
+    dot: 'bg-[hsl(var(--muted-foreground))]',
+    title: 'Posted earlier',
+  };
+}
+
 type JobScrollAnchor = { jobId: string; top: number };
 
 function getVisibleJobScrollAnchor(): JobScrollAnchor | null {
@@ -445,6 +483,7 @@ function Home() {
 
 function JobCard({ job }: { job: LinkedInGuestJob }) {
   const [logoFailed, setLogoFailed] = useState(false);
+  const recency = getRecencyHighlight(job.relativeAgeMs);
   const estimate = new Date(job.computedPostTime);
   const timeOptions: Intl.DateTimeFormatOptions = job.timePrecision === 'day'
     ? {}
@@ -506,7 +545,14 @@ function JobCard({ job }: { job: LinkedInGuestJob }) {
             )}
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-[hsl(var(--muted-foreground))]">
             {job.location && <span className="inline-flex items-center gap-1.5" data-testid={`text-job-location-${job.id}`}><MapPin size={13} aria-hidden="true" />{job.location}</span>}
-            <span className="inline-flex items-center gap-1.5" data-testid={`text-job-relative-${job.id}`}><Clock3 size={13} aria-hidden="true" />{job.rawRelative}</span>
+            <span
+              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-bold ${recency.pill}`}
+              title={`${recency.title} · LinkedIn label: “${job.rawRelative}”`}
+              data-testid={`text-job-relative-${job.id}`}
+            >
+              <span className={`size-1.5 shrink-0 rounded-full ${recency.dot}`} aria-hidden="true" />
+              <Clock3 size={13} aria-hidden="true" />{job.rawRelative}
+            </span>
             {job.jobInsight && <span className="inline-flex items-center rounded-full bg-[hsl(var(--primary)/.1)] px-2.5 py-1 font-semibold text-[hsl(var(--primary))]" data-testid={`text-job-insight-${job.id}`}>{job.jobInsight}</span>}
           </div>
           </div>
