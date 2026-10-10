@@ -518,7 +518,7 @@ function JobCard({ job }: { job: LinkedInGuestJob }) {
     >
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 items-start gap-3">
-          <div className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))]">
+          <div className="grid size-11 shrink-0 place-items-center overflow-hidden">
             {job.companyLogoUrl && !logoFailed ? (
               <img
                 src={job.companyLogoUrl}
@@ -526,7 +526,7 @@ function JobCard({ job }: { job: LinkedInGuestJob }) {
                 loading="lazy"
                 referrerPolicy="no-referrer"
                 onError={() => setLogoFailed(true)}
-                className="size-full object-contain p-1"
+                className="size-full object-contain"
                 data-testid={`img-company-logo-${job.id}`}
               />
             ) : (
