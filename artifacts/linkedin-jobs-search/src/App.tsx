@@ -28,6 +28,8 @@ import {
 const queryClient = new QueryClient();
 const LINKEDIN_PAGE_SIZE = 10;
 const MAX_LINKEDIN_START = 1000;
+const DEFAULT_KEYWORDS = 'Software Engineer';
+const DEFAULT_LOCATION = 'India';
 const FRESHNESS_WINDOWS = [1, 2, 6, 12, 24] as const;
 type FreshnessWindow = (typeof FRESHNESS_WINDOWS)[number];
 const EXPERIENCE_OPTIONS: { value: ExperienceLevel; label: string }[] = [
@@ -103,9 +105,12 @@ function getVisibleJobScrollAnchor(): JobScrollAnchor | null {
 }
 
 function Home() {
-  const [keywords, setKeywords] = useState('');
-  const [location, setLocation] = useState('');
-  const [searchParams, setSearchParams] = useState<SearchLinkedInGuestJobsParams | null>(null);
+  const [keywords, setKeywords] = useState(DEFAULT_KEYWORDS);
+  const [location, setLocation] = useState(DEFAULT_LOCATION);
+  const [searchParams, setSearchParams] = useState<SearchLinkedInGuestJobsParams | null>({
+    keywords: DEFAULT_KEYWORDS,
+    location: DEFAULT_LOCATION,
+  });
   const [freshnessHours, setFreshnessHours] = useState<FreshnessWindow>(24);
   const [experienceLevel, setExperienceLevel] = useState<ExperienceLevel | ''>('');
   const search = useInfiniteQuery({
